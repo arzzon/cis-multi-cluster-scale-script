@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-http-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: my-http-server
+  template:
+    metadata:
+      labels:
+        app: my-http-server
+    spec:
+      containers:
+        - name: my-http-server
+          image: quay.io/arb_khan/dev-repo:health-server
+          ports:
+            - containerPort: 8080 # Default port for the container (not necessarily used by the server directly)
+          env:
+            - name: SERVER_PORT
+              value: "8081"  # Example: Set the environment variable here (e.g., port 8081)

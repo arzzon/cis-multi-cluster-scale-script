@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ns-new
+spec:
+  finalizers:
+  - kubernetes
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster1-deploy-new
+  namespace: ns-new
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cluster1-deploy-new
+  template:
+    metadata:
+      labels:
+        app: cluster1-deploy-new
+    spec:
+      containers:
+      - env:
+        - name: SERVER_PORT
+          value: '6000'
+        image: quay.io/arb_khan/dev-repo:tiny-dummy-server
+        name: cluster1-deploy-new
+        ports:
+        - containerPort: 6000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    cis.f5.com/ip: 10.8.9.1
+  labels:
+    app: cr-nmc-svc-new
+  name: cr-nmc-svc-new
+  namespace: ns-new
+spec:
+  ports:
+  - name: cr-nmc-svc-new-6000
+    port: 6000
+    protocol: TCP
+    targetPort: 6000
+  selector:
+    app: cluster1-deploy-new
+  sessionAffinity: None
+  type: LoadBalancer

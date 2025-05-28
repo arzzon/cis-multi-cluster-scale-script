@@ -1,0 +1,13 @@
+k -n kube-system create secret generic kubeconfig1 --from-file=kubeconfig=/home/rockstar/kubeconfig1
+k -n kube-system create secret generic kubeconfig2 --from-file=kubeconfig=/home/rockstar/kubeconfig2
+k -n kube-system create secret generic kubeconfig3 --from-file=kubeconfig=/home/rockstar/kubeconfig3
+k -n kube-system create secret generic kubeconfig4 --from-file=kubeconfig=/home/rockstar/kubeconfig4
+
+k2 -n kube-system create secret generic kubeconfig1 --from-file=kubeconfig=/home/rockstar/kubeconfig1
+k2 -n kube-system create secret generic kubeconfig2 --from-file=kubeconfig=/home/rockstar/kubeconfig2
+k2 -n kube-system create secret generic kubeconfig3 --from-file=kubeconfig=/home/rockstar/kubeconfig3
+k2 -n kube-system create secret generic kubeconfig4 --from-file=kubeconfig=/home/rockstar/kubeconfig4
+
+
+k create -f /home/rockstar/mc/exdended-cm.yaml
+k2 create -f /home/rockstar/mc/exdended-cm.yaml
