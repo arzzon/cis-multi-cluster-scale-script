@@ -21,6 +21,7 @@ DEPLOY_TEMPLATE_PATH = f"{TEMPLATE_DIR}/deploy.yaml"
 SVC_TEMPLATE_PATH = f"{TEMPLATE_DIR}/svc.yaml"
 MC_SVC_TEMPLATE_PATH = f"{TEMPLATE_DIR}/mc-svc.yaml"
 NMC_SVC_TEMPLATE_PATH = f"{TEMPLATE_DIR}/nmc-svc.yaml"
+HA_FACTOR=1
 
 
 def create_directory_if_not_exists(directory_path):
@@ -95,7 +96,7 @@ def generate_ts_scale(count, tenant_factor, total_clusters, ns_factor):
             ts_yaml['metadata']['namespace'] = ns_name
             ts_yaml['spec']['virtualServerAddress'] = get_vs_address(ct)
             ts_yaml['spec']['virtualServerPort'] = vs_port
-            ts_yaml['spec']['partition'] = f"test-{tenant_num}"
+            #ts_yaml['spec']['partition'] = f"test-{tenant_num}"
             vs_port += 1
             mcss = ts_yaml['spec']['pool']['multiClusterServices']
             final_mcss = []
@@ -176,7 +177,7 @@ def create_resources(count, total_clusters, rsc_type):
         create_resource(SERVICE_OUTPUT_PATH + str(count) + f"/{rsc_type}" + "/svc/svc-cluster" + str(i) + ".yaml", i)
     # 4. Create TS
     if rsc_type != "nmsvclb" and rsc_type != "mcsvclb":
-        for i in range(1,3):
+        for i in range(1,HA_FACTOR+1):
             create_resource(CR_OUTPUT_PATH + str(count) + f"/{rsc_type}" + f"/{rsc_type}-" + str(count) + ".yaml", i)
 
 def generate_vs_scale(count, tenant_factor, total_clusters,  ns_factor):
@@ -207,7 +208,7 @@ def generate_vs_scale(count, tenant_factor, total_clusters,  ns_factor):
             vs_yaml['spec']['virtualServerAddress'] = get_vs_address(ct)
             vs_yaml['spec']['virtualServerHTTPPort'] = vs_port
             vs_yaml['spec']['host'] = f"{resource_type}-{ct}.com"
-            vs_yaml['spec']['partition'] = f"test-{tenant_num}"
+            #vs_yaml['spec']['partition'] = f"test-{tenant_num}"
             vs_port += 1
             mcss = vs_yaml['spec']['pools'][0]['multiClusterServices']
             final_mcss = []
@@ -395,7 +396,7 @@ def parse_arguments():
         description="Generate Kubernetes manifests for testing multi-cluster services",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument("--app_count", type=int, choices=[100, 500, 1000], default=100,
+    parser.add_argument("--app_count", type=int, choices=[100, 500], default=100,
                         help="Number of Applications to generate")
     # parser.add_argument("--tenants", default=1,
     #                     help="Number of apps per tenant")
@@ -414,19 +415,19 @@ def main():
     """Main function to orchestrate manifest generation and resource management."""
     args = parse_arguments()
     app_count = args.app_count
-    tenants = 1
+    tenant_factor = app_count
     clusters = 5
     namespaces = 20
     # Execute requested action
     if args.action in ["generate", "create", "delete"]:
         if args.resource_type == "ts":
-            generate_ts_scale(app_count, tenants, clusters, namespaces)
+            generate_ts_scale(app_count, tenant_factor, clusters, namespaces)
         if args.resource_type == "vs":
-            generate_vs_scale(app_count, tenants, clusters, namespaces)
+            generate_vs_scale(app_count, tenant_factor, clusters, namespaces)
         if args.resource_type == "nmsvclb":
-            generate_nmc_svc(app_count, tenants, clusters, namespaces)
+            generate_nmc_svc(app_count, tenant_factor, clusters, namespaces)
         if args.resource_type == "mcsvclb":
-            generate_mc_svc(app_count, tenants, clusters, namespaces)
+            generate_mc_svc(app_count, tenant_factor, clusters, namespaces)
         if args.action == "create":
             create_resources(app_count, clusters, args.resource_type)
         elif args.action == "delete":

@@ -1,0 +1,13 @@
+# requirements.txt for Kubernetes Multi-Cluster Resource Generator
+
+# Core dependencies
+pyyaml>=6.0
+# For YAML parsing and generation
+
+# Optional dependencies for enhanced functionality
+#colorama>=0.4.4
+# For colored terminal output (optional)
+
+# Development dependencies (not required for running)
+# pytest>=7.0.0
+# flake8>=4.0.1
