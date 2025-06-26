@@ -1,0 +1,64 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  annotations:
+    virtual-server.f5.com/health: "[\n  {\n    \"send\": \"HTTP GET /secured\",\n    \"interval\": 5,\n    \"timeout\": 16,\n    \"type\": \"https\"\n  }\n]\n"
+  labels:
+    f5type: systest
+  name: route1
+  namespace: scale-test
+spec:
+  host: securedroute.com
+  path: /
+  tls:
+    certificate: |
+        -----BEGIN CERTIFICATE-----
+        MIIDYjCCAkqgAwIBAgIUelwrT4RLIzqCqQRdoGM/Tw2toCwwDQYJKoZIhvcNAQEL
+        BQAwQjELMAkGA1UEBhMCVVMxCzAJBgNVBAgMAkNPMQwwCgYDVQQHDANCRE8xCzAJ
+        BgNVBAsMAmNhMQswCQYDVQQKDAJGNTAeFw0yNTA2MTQxMTU5MzdaFw0yNTA2MTcx
+        MTU5MzdaMFAxCzAJBgNVBAYTAlVTMQswCQYDVQQIDAJDTzEMMAoGA1UEBwwDQkRP
+        MQswCQYDVQQKDAJGNTEZMBcGA1UEAwwQcHl0ZXN0LWJhci0yLmNvbTCCASIwDQYJ
+        KoZIhvcNAQEBBQADggEPADCCAQoCggEBAOe0AUo6VqlijfQ2KTJ7czU+nZVruo6m
+        aqcNfsMVPeISvrCK6khINTx6XS7Es8H+v8LXlYkQjHz3pSx3+Db+2LEy6KAG5EfK
+        yvlt+QgttfhFeIU9CCPcYqQdMSiSZ76uK6tL2Z898y1UvxaMslX//P1wGlYVlkS/
+        EJpOxWp/p1/w4vjlq0uF6KUcjekJh93OiUorof1gzP4Bvd3MtPoNxbPvWTdeiPbW
+        Q0WYSGevMqE6S77coo1HTSGLK1TswzfosZcknKBeVyyXCeOHdhYg6aJ0hFeD2128
+        3Doto5GluhIUDT+tY8MnaWKdPPjNlp07Rh3Tf/kR2d1s7l+7KY9IKwkCAwEAAaNC
+        MEAwHQYDVR0OBBYEFErWagD/sv60BTfrqgdx3ayUN/SCMB8GA1UdIwQYMBaAFBUg
+        gpcaSR8O0Sth58fjJw2npixeMA0GCSqGSIb3DQEBCwUAA4IBAQAwXtosASwA4qVe
+        4n9+OV3pDKtaVVeCa0unzpnV77H1pTabu4cnBycqgnMb9USNFW3Egrq6BVX+avKK
+        mTR35EOr
+        -----END CERTIFICATE-----
+    key: |
+        -----BEGIN PRIVATE KEY-----
+        MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDntAFKOlapYo30
+        Nikye3M1Pp2Va7qOpmqnDX7DFT3iEr6wiupISDU8el0uxLPB/r/C15WJEIx896Us
+        d/g2/tixMuigBuRHysr5bfkILbX4RXiFPQgj3GKkHTEokme+riurS9mfPfMtVL8W
+        jLJV//z9cBpWFZZEvxCaTsVqf6df8OL45atLheilHI3pCYfdzolKK6H9YMz+Ab3d
+        zLT6DcWz71k3Xoj21kNFmEhnrzKhOku+3KKNR00hiytU7MM36LGXJJygXlcslwnj
+        h3YWIOmidIRXg9tdvNw6LaORpboSFA0/rWPDJ2linTz4zZadO0Yd03/5EdndbO5f
+        uymPSCsJAgMBAAECggEAAJieWLsr8ilgYWCazEgUSK6pr+LcMuYDd/zRRs35D+n5
+        ruFanzc9WNOdRgOoTT9bLbSJjFXcMK2f8Yx4+WZANzuA7Pl7kKI5Ubk6Vu6sLVB7
+        cgdRTCtS3yZ6lAbFaNCQqPML4yyhAay6RaP0yQMcuue1D6PkVDa0I5uAh0i/DOCD
+        6iOAFWpFbEZo1QnT1yXI1CftORwKTpRQLbhTxWKGdk88OUqb3DHTjyePeXcTLo3S
+        S1tgjLBKBLYitlzTsHHODVBlrmRWXC5LqVxx8PX66D3nC3bDp3y2G/GJyymOx0Eo
+        iItxGXZpv5ZG5jSZphJ0JAbmtErd1P5hZFi343hK8QKBgQD0ukmrVLDLSXCFIn/u
+        IGNfXjwvhj2Oaiv9OclpqvAN6B482pa9qEEYcJ0G1TJZTQ0Fu/BwJDMKkeVrD1Yc
+        xu58kRuAgi47A4SfK956G1geRqsrAqOOKV9PAH+gqZ1nxl1tc1e3OSK8MTLSKb24
+        DpZKEX4y5g3v+1ictM2M9KiCUQKBgQDyYCNZGEM8yi7QHQUimh8aEkLABsYBGaFd
+        JpDgVhE8UR2JoSl8SAl9mcgDGVbcjIiX6TuprRJtcsIkeSV36j/bpqiGI9pUrzFm
+        HWeftE8phvamAv7dbYAiJkoFo18i8s6q4ExYnbw+XfklMJrQEBohFTBTCu/9Eocd
+        IuKgrtf3OQKBgQDXi4P7LRqR0dsSx7IZj9k2VA96ZCevWX/pBo6JTQ8lkH2hZ31B
+        CgJbfkQvknNIB/8iP8ejXZ6+/oUr6FQWAHhoqn2okAAb5htW/hJzRcY01FVKCob3
+        XSUetfezD/EdR69eCSsGq4IWctaqGC2LAP4JuqKGPe2koqIHU49/SLVqIQKBgGar
+        JK4L4gdxGY1cjZ1PrdcMXywacmtq4Pilan8s1hY3wgxXsUwM88A5kQkHBc1c1kuL
+        J5PDVWf5UZXDn4SBPNWdbguMSmLO51z7Hbb/2PydSAOghzdiuAE/OOHUh2s1cSfe
+        5VgwUNoWUoBXa2yxNXBIGnVCz8/itks4SMmJ5r+5AoGAJpr9MaQV1DNIYVaxhkwi
+        WQMwyW2iSdbNZ/9+7qYZyiWygH/dhHNa9zl5ffQ/drCg7uyZotZC4I7cwF5Kg0EG
+        8xSf/IBaB6nJULUEDAOUrhxrUWcJuWutFclIWb8J9j8ZFplGsBKOtLItEQblnrws
+        wf8ItzX8+KVzoL0gupp59sg=
+        -----END PRIVATE KEY-----
+    termination: edge
+  to:
+    kind: Service
+    name: svc-1

@@ -1,0 +1,12 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: bigip-controller
+  namespace: scale-test
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: run-as-anyid
+  namespace: scale-test

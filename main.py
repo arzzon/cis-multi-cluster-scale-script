@@ -1,4 +1,5 @@
 import json
+import time
 
 import yaml
 import subprocess
@@ -18,9 +19,16 @@ TS_TEMPLATE_PATH = f"{TEMPLATE_DIR}/ts.yaml"
 VS_TEMPLATE_PATH = f"{TEMPLATE_DIR}/vs-unsecured.yaml"
 NS_TEMPLATE_PATH = f"{TEMPLATE_DIR}/ns.yaml"
 DEPLOY_TEMPLATE_PATH = f"{TEMPLATE_DIR}/deploy.yaml"
+DEPLOY_SCALE_TEMPLATE_PATH = f"{TEMPLATE_DIR}/deploy-route-scale.yaml"
 SVC_TEMPLATE_PATH = f"{TEMPLATE_DIR}/svc.yaml"
 MC_SVC_TEMPLATE_PATH = f"{TEMPLATE_DIR}/mc-svc.yaml"
 NMC_SVC_TEMPLATE_PATH = f"{TEMPLATE_DIR}/nmc-svc.yaml"
+ROUTE_SECURE_TEMPLATE_PATH = f"{TEMPLATE_DIR}/route-secured.yaml"
+ROUTE_UNSECURE_TEMPLATE_PATH = f"{TEMPLATE_DIR}/route-unsecured.yaml"
+ROUTE_SVC_DEPLOY_TEMPLATE_PATH = f"{TEMPLATE_DIR}/route-svc-deploy.yaml"
+ROUTE_SVC_TEMPLATE_PATH = f"{TEMPLATE_DIR}/route-svc.yaml"
+ROUTE_CONFIG_MAP_TEMPLATE_PATH = f"{TEMPLATE_DIR}/route-configmap.yaml"
+ROUTE_DEPLOY_TEMPLATE_PATH = f"{TEMPLATE_DIR}/route-deploy.yaml"
 HA_FACTOR=1
 
 
@@ -381,6 +389,173 @@ def generate_mc_svc(count, tenant_factor, total_clusters,  ns_factor):
     for cl_ct in range(1, total_clusters+1):
         write_multiple_resources(nss_yaml, NS_OUTPUT_PATH + str(count) + f"/{resource_type}" + "/ns", "ns-cluster" + str(cl_ct) + ".yaml")
 
+def generate_route_scale(count, ns_factor, paths, secure, unsecure, ips):
+    routes_yaml = []
+    ns_yaml = []
+    svc_yaml = []
+    svc_deploy_yaml = []
+    deploy_yaml = []
+    cfg_yaml = []
+    ns_factor = ips
+    count = secure + unsecure
+    base_route_unsecure = read_yaml_file(ROUTE_UNSECURE_TEMPLATE_PATH)
+    base_route_secure = read_yaml_file(ROUTE_SECURE_TEMPLATE_PATH)
+    base_ns_yaml = read_yaml_file(NS_TEMPLATE_PATH)
+    base_route_deploy = read_yaml_file(ROUTE_DEPLOY_TEMPLATE_PATH)
+    base_service = read_yaml_file(ROUTE_SVC_TEMPLATE_PATH)
+    base_svc_deploy = read_yaml_file(ROUTE_SVC_DEPLOY_TEMPLATE_PATH)
+    base_cfg_yaml = read_yaml_file(ROUTE_CONFIG_MAP_TEMPLATE_PATH)
+    deploy_yaml.append(copy.deepcopy(base_route_deploy))
+    write_multiple_resources(deploy_yaml, OUTPUT_DIR + "/routes" + "/deploy", "deploy-" + str(1) + ".yaml")
+    cert_dir = "/tmp/systest-ca/scale-test/"
+    ca_key = "/tmp/systest-ca/rootCA.key"
+    ca_cert = "/tmp/systest-ca/rootCA.crt"
+
+    cfg = copy.deepcopy(base_cfg_yaml)
+    total_secure = 0
+    total_routes = 0
+    for i in range(ns_factor):
+        ns = copy.deepcopy(base_ns_yaml)
+        ns["metadata"]["name"] = "ns-{}".format(i + 1)
+        if i == 0:
+            cfg["data"] = {
+                "extendedSpec": f"""extendedRouteSpec:\n  - namespace: ns-{(i + 1)}\n    allowOverride: true\n    vserverAddr: {get_vs_address(i+1)}\n    vserverName: vs-{(i + 1)}\n"""
+            }
+        else:
+            extendedRouteSpec = f"""  - namespace: ns-{(i + 1)}\n    allowOverride: true\n    vserverAddr: {get_vs_address(i+1)}\n    vserverName: vs-{(i + 1)}\n"""
+            cfg["data"]["extendedSpec"] = cfg["data"]["extendedSpec"] + extendedRouteSpec
+        ns_yaml.append(ns)
+        base_svc_yaml = copy.deepcopy(base_service)
+        base_svc_deploy_yaml = copy.deepcopy(base_svc_deploy)
+        base_svc_yaml["metadata"]["name"] = "svc-{}".format(i + 1)
+        base_svc_yaml["metadata"]["labels"]["app"] = "svc-{}".format(i + 1)
+        base_svc_yaml["spec"]["selector"]["app"] = "svc-{}".format(i + 1)
+        base_svc_yaml["metadata"]["namespace"] = "ns-{}".format(i + 1)
+        base_svc_yaml["spec"]["ports"][0]["nodePort"] = 30000 + i
+        base_svc_yaml["spec"]["ports"][0]["name"] = "svc-{}-80".format(i + 1)
+        svc_yaml.append(base_svc_yaml)
+        base_svc_deploy_yaml["metadata"]["name"] = "svc-{}".format(i + 1)
+        base_svc_deploy_yaml["metadata"]["namespace"] = "ns-{}".format(i + 1)
+        base_svc_deploy_yaml["metadata"]["labels"]["name"] = "svc-{}".format(i + 1)
+        base_svc_deploy_yaml["spec"]["selector"]["matchLabels"]["app"] = "svc-{}".format(i + 1)
+        base_svc_deploy_yaml["spec"]["template"]["metadata"]["labels"]["app"] = "svc-{}".format(i + 1)
+        base_svc_deploy_yaml["spec"]["template"]["spec"]["containers"][0]["env"][0]["value"] = "svc-{}".format(i + 1)
+        base_svc_deploy_yaml["spec"]["template"]["spec"]["containers"][0]["name"] = "svc-{}".format(i + 1)
+        svc_deploy_yaml.append(base_svc_deploy_yaml)
+        if secure > 0:
+            if not os.path.exists(ca_key):
+                cmd = ['openssl', 'genrsa', '-out', ca_key, '2048']
+                subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if not os.path.exists(ca_cert):
+                cmd = ['openssl', 'req', '-x509', '-new', '-nodes', '-key',
+                    ca_key, '-sha256', '-days', '365', '-out', ca_cert,
+                    '-subj', '/C=US/ST=CO/L=BDO/OU=ca/O=F5']
+                subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if not os.path.exists(cert_dir):
+                os.makedirs(cert_dir)
+            
+        for j in range(count//ns_factor):
+            total_routes += 1
+            if total_secure < secure:
+                total_secure += 1
+                server_name = f"app-secure-{total_routes}.scale.test.com"
+                key_name = "{}/{}".format(cert_dir, f"{server_name}.key")
+                cert_name = "{}/{}".format(cert_dir, f"{server_name}.crt")
+                if not os.path.exists(key_name):
+                    cmd = ['openssl', 'genrsa', '-out', key_name, '2048']
+                    subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                if not os.path.exists(cert_name):
+                    csr_name = "{}/{}".format(cert_dir, f"{server_name}.csr")
+                    if not os.path.exists(csr_name):
+                        cmd = [
+                            'openssl', 'req', '-new', '-key', key_name,
+                            '-out', csr_name, '-days', '3', '-subj',
+                            '/C=US/ST=CO/L=BDO/O=F5/CN=' + server_name
+                        ]
+                        subprocess.call(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                        # Sign csr with root CA
+                        cmd = [
+                            'openssl', 'x509', '-req', '-in', csr_name,
+                            '-CA', ca_cert, '-CAkey', ca_key,
+                            '-CAcreateserial', '-out', cert_name,
+                            '-days', '3', '-extensions', 'server_cert', '-sha256'
+                        ]
+                        subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                new_base_secure_route = copy.deepcopy(base_route_secure)
+                new_base_secure_route['spec']['tls']['key'] = f"{open(key_name, 'r').read()}"
+                new_base_secure_route['spec']['tls']['certificate'] = f"{open(cert_name, 'r').read()}"
+                new_base_secure_route['spec']['host'] = f"{server_name}"
+                new_base_secure_route['metadata']['name'] = f"route-{total_routes}"
+                new_base_secure_route['spec']['path'] = f"/path-{total_routes%paths}"
+                new_base_secure_route['metadata']['namespace'] = "ns-{}".format(i + 1)
+                new_base_secure_route['spec']['to']['name'] = "svc-{}".format(i + 1)
+                routes_yaml.append(new_base_secure_route)
+            else:
+                server_name = f"app-unsecure-{total_routes}.scale.test.com"
+                new_base_unsecure_route = copy.deepcopy(base_route_unsecure)
+                new_base_unsecure_route['spec']['host'] = f"{server_name}"
+                new_base_unsecure_route['metadata']['name'] = f"route-{total_routes}"
+                new_base_unsecure_route['spec']['path'] = f"/path-{total_routes%paths}"
+                new_base_unsecure_route['metadata']['namespace'] = "ns-{}".format(i + 1)
+                new_base_unsecure_route['spec']['to']['name'] = "svc-{}".format(i + 1)
+                routes_yaml.append(new_base_unsecure_route)
+    write_multiple_resources(ns_yaml, OUTPUT_DIR + "/routes" + "/namespaces", "ns-" + str(ns_factor) + ".yaml")
+    write_multiple_resources(svc_yaml, OUTPUT_DIR + "/routes" + "/services", "svc-" + str(len(svc_yaml)) + ".yaml")
+    write_multiple_resources(svc_deploy_yaml, OUTPUT_DIR + "/routes" + "/deploy", "svc-deploy-" + str(len(svc_deploy_yaml)) + ".yaml")
+    cfg_yaml.append(cfg)
+    write_multiple_resources(cfg_yaml, OUTPUT_DIR + "/routes" + "/cfg-map", "cfg-map.yaml")
+    write_multiple_resources(routes_yaml, OUTPUT_DIR + "/routes"+f"/{count}", f"routes-" + str(count) + ".yaml")
+
+    # apply the cfg map
+    print("Create config map")
+    cmd = [
+        "oc", "apply", "-f", OUTPUT_DIR + "/routes" + "/cfg-map/"
+    ]
+    subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    time.sleep(5)
+
+    # apply the namespaces
+    print("Create namespaces")
+    cmd = [
+        "oc", "apply", "-f", OUTPUT_DIR + "/routes" + "/namespaces/"
+    ]
+    subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    time.sleep(5)
+    
+    # create service accounts
+    print("Create service acounts for each namespace")
+    for i in range(len(ns_yaml)):
+        cmd = ["oc", "create", "serviceaccount", "run-as-anyid", "-n", f"ns-{i + 1}"]
+        subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        time.sleep(2)
+        cmd = ["oc", "adm", "policy", "add-scc-to-user", "anyuid", "-z", "run-as-anyid", "-n", f"ns-{i + 1}"]
+        subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        time.sleep(2)
+    
+    # create svcs
+    print("Create services")
+    cmd = [
+        "oc", "apply", "-f", OUTPUT_DIR + "/routes" + "/services/"
+    ]
+    subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    time.sleep(5)
+
+    # create svc deploys
+    print("Create service deploys")
+    cmd = [
+        "oc", "apply", "-f", OUTPUT_DIR + "/routes" + f"/deploy/"
+    ]
+    subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    time.sleep(5)
+
+    # create routes
+    print("Create routes")
+    cmd = [
+        "oc", "apply", "-f", OUTPUT_DIR + "/routes" + f"/{count}/routes-{count}.yaml"
+    ]
+    subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    time.sleep(5)
+
 # Configuration with defaults that can be overridden
 DEFAULT_CONFIG = {
     "total_clusters": 5,
@@ -396,18 +571,30 @@ def parse_arguments():
         description="Generate Kubernetes manifests for testing multi-cluster services",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument("--app_count", type=int, choices=[100, 500], default=100,
+    parser.add_argument("--app_count", type=int, default=100,
                         help="Number of Applications to generate")
     # parser.add_argument("--tenants", default=1,
     #                     help="Number of apps per tenant")
-    parser.add_argument("--resource_type", choices=["ts", "vs", "nmsvclb", "mcsvclb"], required=True,
+    parser.add_argument("--resource_type", choices=["ts", "vs", "nmsvclb", "mcsvclb", "routes"], required=True,
                         help="Type of resource to generate")
     parser.add_argument("--action", choices=["generate", "create", "delete"], default="generate",
                         help="Action to perform")
-    # parser.add_argument("--clusters", type=int, default=DEFAULT_CONFIG["total_clusters"],
-    #                     help="Number of clusters to generate resources for")
-    # parser.add_argument("--namespaces", type=int, default=20,
-    #                     help="Number of namespaces to generate resources in")
+    parser.add_argument("--clusters", type=int, default=DEFAULT_CONFIG["total_clusters"],
+                        help="Number of clusters to generate resources for")
+    parser.add_argument("--namespaces", type=int, default=1,
+                        help="Number of namespaces to generate resources in")
+    parser.add_argument("--hosts", type=int, default=0,
+                        help="Number of hosts")
+    parser.add_argument("--paths", type=int, default=0,
+                        help="Number of paths to add")
+    parser.add_argument("--secure", type=int, default=0,
+                        help="Number of secure resources")
+    parser.add_argument("--unsecure", type=int, default=0,
+                        help="Number of unsecure resources")
+    parser.add_argument("--ips", type=int, default=1,
+                        help="Number of IP addresses")
+    parser.add_argument("--services", type=int, default=1,
+                        help="Number of services")
     return parser.parse_args()
 
 
@@ -418,6 +605,15 @@ def main():
     tenant_factor = app_count
     clusters = 5
     namespaces = 20
+    if args.namespaces:
+        namespaces = args.namespaces
+    if args.clusters:
+        clusters = args.clusters
+    hosts = args.hosts
+    paths = args.paths
+    secure = args.secure
+    unsecure = args.unsecure
+    ips = args.ips
     # Execute requested action
     if args.action in ["generate", "create", "delete"]:
         if args.resource_type == "ts":
@@ -428,8 +624,10 @@ def main():
             generate_nmc_svc(app_count, tenant_factor, clusters, namespaces)
         if args.resource_type == "mcsvclb":
             generate_mc_svc(app_count, tenant_factor, clusters, namespaces)
+        if args.resource_type in ["routes"]:
+            generate_route_scale(app_count, namespaces, paths, secure, unsecure, ips)
         if args.action == "create":
-            create_resources(app_count, clusters, args.resource_type)
+            create_resources(app_count, clusters, args.resource_type)    
         elif args.action == "delete":
             for cluster_count in range(1, clusters+1):
                 delete_ns(NS_OUTPUT_PATH + str(app_count) + f"/{args.resource_type}" + "/ns/ns-cluster" + str(cluster_count) + ".yaml", cluster_count)

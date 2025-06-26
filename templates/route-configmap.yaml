@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    f5nr: "true"
+  name: global-spec-config
+  namespace: kube-system
