@@ -1,0 +1,15 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  annotations:
+    virtual-server.f5.com/health: "[\n  {\n    \"send\": \"HTTP GET /unsecured\",\n    \"interval\": 5,\n    \"timeout\": 16,\n    \"type\": \"https\"\n  }\n]\n"
+  labels:
+    f5type: systest
+  name: route1
+  namespace: scale-test
+spec:
+  host: unsecuredroute.com
+  path: /
+  to:
+    kind: Service
+    name: svc-1
